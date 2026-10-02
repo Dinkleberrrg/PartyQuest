@@ -1,7 +1,7 @@
 ## Interface: 11200
 ## Title: |cff33ffccParty|cffffffffQuest
 ## Notes: Shows your party members' quest progress in the quest log and the pfQuest tracker.
-## Author: Henry
+## Author: Dinkleberrrg
 ## Version: 1.1.0
 ## OptionalDeps: pfQuest, pfQuest-octo, pfUI, EQL3, ShaguQuest
 ## SavedVariablesPerCharacter: PartyQuest_config
