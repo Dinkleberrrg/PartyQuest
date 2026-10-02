@@ -25,8 +25,8 @@ Version 1.1 works together with 1.0 in the same group. Members on 1.0 are
 marked as "old version" in `/pq status`; the traffic savings only apply
 once everyone is on 1.1.
 
-In a raid only your own subgroup is shown by default (`/pq raid` switches
-between own subgroup, whole raid and off).
+Raid sync is off by default; in a raid PartyQuest stays quiet. `/pq raid`
+switches between off, own subgroup and whole raid.
 
 ## Commands
 
@@ -38,7 +38,7 @@ between own subgroup, whole raid and off).
 | `/pq rows` | Counters in the quest list on/off |
 | `/pq tracker` | pfQuest tracker lines on/off |
 | `/pq self` | Your own progress in the panel on/off |
-| `/pq raid` | In raids: own subgroup / whole raid / off |
+| `/pq raid` | In raids: off / own subgroup / whole raid |
 | `/pq on` / `/pq off` | Sync on/off entirely |
 | `/pq debug` | Debug output |
 
@@ -83,6 +83,9 @@ _test/           offline test harness (not loaded by the game)
 
 ## Changelog
 
+### 1.1.1
+* Raid sync is off by default (party only); `/pq raid` turns it on.
+
 ### 1.1.0
 * Failed quests are shown as failed instead of "ready to turn in".
 * Full syncs end with a key list, so stale quests no longer stick around.
@@ -91,7 +94,7 @@ _test/           offline test harness (not loaded by the game)
 * pfQuest tracker: lines no longer overlap the next entry.
 * Much less traffic: no full resync on every loading screen or roster
   change; state hash in the hello, targeted requests.
-* Raids: own subgroup only by default, `/pq raid`.
+* Raids: sync off by default; `/pq raid` enables own subgroup or whole raid.
 * Quest ids come from `pfQuest.questlog` instead of a database lookup
   on every scan.
 * `/pq status` shows old versions and the send queue; `/pq on` requests

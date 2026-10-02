@@ -42,7 +42,7 @@ local function Help()
   DEFAULT_CHAT_FRAME:AddMessage("  /pq rows      - counters in the quest list on/off")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq tracker   - pfQuest tracker lines on/off")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq self      - your own progress in the panel on/off")
-  DEFAULT_CHAT_FRAME:AddMessage("  /pq raid      - in raids: own subgroup / whole raid / off")
+  DEFAULT_CHAT_FRAME:AddMessage("  /pq raid      - in raids: off / own subgroup / whole raid")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq on | off  - sync on/off entirely")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq debug     - debug output on/off")
 end
@@ -75,8 +75,8 @@ SlashCmdList["PARTYQUEST"] = function(msg)
   elseif msg == "self" then
     Toggle("self", "Own progress in panel")
   elseif msg == "raid" then
-    local nextmode = { group = "all", all = "off", off = "group" }
-    PQ.db.raid = nextmode[PQ.db.raid] or "group"
+    local nextmode = { off = "group", group = "all", all = "off" }
+    PQ.db.raid = nextmode[PQ.db.raid] or "off"
     local text = { group = "own subgroup only", all = "whole raid", off = "off" }
     PQ.Print("Raid sync: " .. PQ.C.head .. text[PQ.db.raid] .. PQ.C.off)
     PQ.OnRosterChanged()

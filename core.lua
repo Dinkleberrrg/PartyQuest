@@ -8,7 +8,7 @@ PartyQuest = CreateFrame("Frame", "PartyQuestCore", UIParent)
 local PQ = PartyQuest
 
 PQ.addonName  = "PartyQuest"
-PQ.versionStr = "1.1.0"
+PQ.versionStr = "1.1.1"
 PQ.protocol   = 2   -- 1 = v1.0 (H carried "1.<version>"), 2 = H with state hash
 PQ.prefix     = "PQT"
 
@@ -19,7 +19,7 @@ PQ.defaults = {
   rows     = "1",   -- counters in the quest log list
   tracker  = "1",   -- lines in the pfQuest tracker
   self     = "1",   -- include your own progress in the panel
-  raid     = "group", -- in a raid: "group" = own subgroup only, "all", "off"
+  raid     = "off", -- in a raid: "off" (default), "group" = own subgroup, "all"
   debug    = "0",
 }
 
@@ -289,6 +289,12 @@ PQ:RegisterEvent("PLAYER_ENTERING_WORLD")
 PQ:SetScript("OnEvent", function()
   if event == "ADDON_LOADED" and arg1 == "PartyQuest" then
     PartyQuest_config = PartyQuest_config or {}
+    -- 1.1.0 briefly defaulted raid sync to "group"; reset that once to the
+    -- new default "off". cfg = config revision of the saved table.
+    if (PartyQuest_config.cfg or 0) < 2 then
+      if PartyQuest_config.raid == "group" then PartyQuest_config.raid = "off" end
+      PartyQuest_config.cfg = 2
+    end
     for k, v in pairs(PQ.defaults) do
       if PartyQuest_config[k] == nil then PartyQuest_config[k] = v end
     end
