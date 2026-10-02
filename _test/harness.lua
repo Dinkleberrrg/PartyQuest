@@ -37,6 +37,8 @@ end
 strfind, strsub, strlen, strbyte, strlower = string.find, string.sub, string.len, string.byte, string.lower
 gsub, format = string.gsub, string.format
 mod = math.fmod
+table.getn = table.getn or function(t) return #t end
+UNKNOWNOBJECT = "Unknown"
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) print("  |chat| " .. m) end }
 SlashCmdList = {}
 RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 } }
@@ -44,39 +46,74 @@ RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 } }
 -- Group: me + Thrall
 function GetNumRaidMembers() return 0 end
 function GetNumPartyMembers() return 1 end
+function GetRaidRosterInfo() return nil end
 function UnitName(u) if u == "player" then return "Henry" elseif u == "party1" then return "Thrall" end end
 function UnitClass() return "Warrior", "WARRIOR" end
 function UnitIsUnit(a, b) return a == b end
 
--- Quest log: 3 quests, one of them with a lot of objectives
+-- Quest log with zone headers. Quests under a collapsed header are hidden
+-- from GetQuestLogTitle, exactly like the 1.12 client does it.
 local LOG = {
-  { title = "Mountain Pass", level = 12, complete = false, obj = {
+  { header = "Elwynn Forest", collapsed = false },
+  { title = "Mountain Pass", level = 12, obj = {
       { "Kobold Miner slain: 3/8", false },
       { "Kobold Overseer slain: 0/2", false },
   } },
-  { title = "The Lost Map", level = 15, complete = true, obj = {
+  { title = "The Lost Map", level = 15, complete = 1, obj = {
       { "Map of the Lost", true },
   } },
-  { title = "A Gathering Errand With A Very Long Title For The Length Test", level = 30, complete = false, obj = {
+  { title = "Escort the Merchant", level = 14, complete = -1, obj = {
+      { "Escort the merchant", false },
+  } },
+  { header = "Westfall", collapsed = false },
+  { title = "A Gathering Errand With A Very Long Title For The Length Test", level = 30, obj = {
       { "Exceptionally long objective number one: 10/20", false },
       { "Exceptionally long objective number two: 5/20", false },
       { "Exceptionally long objective number three: 0/20", false },
       { "Exceptionally long objective number four: 1/20", false },
       { "Exceptionally long objective number five: 2/20", false },
   } },
+  { title = "The Defias Brotherhood", level = 18, obj = {
+      { "Defias Pillager slain: 1/10", false },
+  } },
 }
 
-function GetNumQuestLogEntries() return table.getn(LOG), table.getn(LOG) end
-function GetQuestLogTitle(i)
-  local q = LOG[i]
-  if not q then return nil end
-  return q.title, q.level, nil, false, false, q.complete
+local function Visible()
+  local out, total, hide = {}, 0, false
+  for _, e in ipairs(LOG) do
+    if e.header then
+      hide = e.collapsed
+      table.insert(out, e)
+    else
+      total = total + 1
+      if not hide then table.insert(out, e) end
+    end
+  end
+  return out, total
 end
-function GetNumQuestLeaderBoards(i) return LOG[i] and table.getn(LOG[i].obj) or 0 end
+
+function GetNumQuestLogEntries()
+  local v, total = Visible()
+  return table.getn(v), total
+end
+function GetQuestLogTitle(i)
+  local e = Visible()[i]
+  if not e then return nil end
+  if e.header then return e.header, nil, nil, 1, e.collapsed and 1 or nil, nil end
+  return e.title, e.level, nil, nil, nil, e.complete
+end
+function GetNumQuestLeaderBoards(i)
+  local e = Visible()[i]
+  return e and e.obj and table.getn(e.obj) or 0
+end
 function GetQuestLogLeaderBoard(o, i)
-  local q = LOG[i]
-  if not q or not q.obj[o] then return nil end
-  return q.obj[o][1], "monster", q.obj[o][2]
+  local e = Visible()[i]
+  if not e or not e.obj or not e.obj[o] then return nil end
+  return e.obj[o][1], "monster", e.obj[o][2]
+end
+
+local function FindLog(title)
+  for i, e in ipairs(LOG) do if e.title == title then return i, e end end
 end
 
 -- capture everything that gets sent
@@ -94,15 +131,25 @@ PQ.db = {}
 for k, v in pairs(PQ.defaults) do PQ.db[k] = v end
 PQ.UpdateRoster()
 
+local sender = frames["PartyQuestSender"]
+local function Drain()
+  for i = 1, 300 do
+    now = now + 1
+    sender.scripts.OnUpdate()
+  end
+end
+local function Deliver(list)
+  for _, m in ipairs(list) do PQ.OnAddonMessage(m.prefix, m.msg, "PARTY", "Thrall") end
+end
+local function Has(prefix)
+  for _, m in ipairs(SENT) do
+    if string.sub(m.msg, 1, string.len(prefix)) == prefix then return true end
+  end
+end
+
 print("== send full sync ==")
 PQ.Broadcast(true)
-
--- drain the send queue
-local sender = frames["PartyQuestSender"]
-for i = 1, 200 do
-  now = now + 1
-  sender.scripts.OnUpdate()
-end
+Drain()
 
 local maxlen = 0
 for i, m in ipairs(SENT) do
@@ -112,50 +159,88 @@ for i, m in ipairs(SENT) do
 end
 print("  messages: " .. table.getn(SENT) .. ", longest: " .. maxlen .. " B (limit 255)")
 assert(maxlen < 250, "message too long!")
+assert(Has("L\t5\t1\t"), "full sync must end with the key list")
 
 print("== simulate receiving (as Thrall) ==")
-for _, m in ipairs(SENT) do
-  PQ.OnAddonMessage(m.prefix, m.msg, "PARTY", "Thrall")
-end
+-- a ghost quest Thrall's copy still has from earlier: the key list must remove it
+local member = PQ.GetMember("Thrall")
+member.version = "x"
+member.quests["q1"] = { title = "Ghost", level = 1, complete = 0, obj = {}, objCount = 0 }
+PQ.IndexTitle(member, member.quests["q1"])
+Deliver(SENT)
 
-local member = PQ.party["Thrall"]
-assert(member, "no member created")
 local n = 0
 for key, q in pairs(member.quests) do
   n = n + 1
   local cur, req, pct = PQ.QuestProgress(q)
-  print(string.format("  %-8s %-45s lvl %2d  %s", key, q.title, q.level,
-    q.complete == 1 and "COMPLETE" or (cur .. "/" .. req .. "  " .. math.floor(pct) .. "%")))
-  for i = 1, q.objCount do
-    local o = q.obj[i]
-    print(string.format("        - %-24s %s/%s%s", o.label, o.cur, o.req, o.done == 1 and " (ok)" or ""))
-  end
+  print(string.format("  %-10s %-45s lvl %2d  %s", key, q.title, q.level,
+    q.complete == 1 and "COMPLETE" or q.complete == -1 and "FAILED"
+    or (cur .. "/" .. req .. "  " .. math.floor(pct) .. "%")))
 end
-assert(n == 3, "expected 3 quests, got " .. n)
+assert(n == 5, "expected 5 quests, got " .. n)
+assert(not member.quests["q1"], "ghost quest not pruned by key list")
+assert(not member.byTitle["Ghost"], "ghost title not unindexed")
 
-print("== title fallback (receiver without pfQuest ids) ==")
+print("== failed quest stays failed ==")
+local failed = PQ.FindQuest(member, nil, "Escort the Merchant")
+assert(failed and failed.complete == -1, "failed quest not transmitted as -1")
+
+print("== state hash matches after full sync ==")
+assert(PQ.StateHash(member.quests) == PQ.StateHash(PQ.mine), "hash mismatch after full sync")
+
+print("== title fallback, incl. long titles ==")
 local q = PQ.FindQuest(member, "q99999", "Mountain Pass")
 assert(q and q.title == "Mountain Pass", "title fallback broken")
-print("  ok: quest found by title")
+q = PQ.FindQuest(member, "q99999", "A Gathering Errand With A Very Long Title For The Length Test")
+assert(q, "long title not found (normalisation)")
 
 print("== delta: one objective changes ==")
 SENT = {}
-LOG[1].obj[1][1] = "Kobold Miner slain: 7/8"
+local _, mp = FindLog("Mountain Pass")
+mp.obj[1][1] = "Kobold Miner slain: 7/8"
 PQ.Broadcast(nil)
-for i = 1, 50 do now = now + 1; sender.scripts.OnUpdate() end
+Drain()
 print("  delta messages: " .. table.getn(SENT) .. " (expected 1)")
 assert(table.getn(SENT) == 1, "delta sends too much")
+Deliver(SENT)
 
-print("== quest turned in ==")
+print("== collapsed header: hidden quests are kept ==")
 SENT = {}
-table.remove(LOG, 2)
+LOG[5].collapsed = true            -- collapse Westfall
 PQ.Broadcast(nil)
-for i = 1, 50 do now = now + 1; sender.scripts.OnUpdate() end
-local hasDelete = false
-for _, m in ipairs(SENT) do
-  if string.sub(m.msg, 1, 2) == "D\t" then hasDelete = true end
-end
-print("  messages: " .. table.getn(SENT) .. ", delete command: " .. tostring(hasDelete))
-assert(hasDelete, "no D command sent")
+Drain()
+assert(not Has("D\t"), "hidden quests reported as gone")
+
+print("== collapsed header: turn-in in an open zone is still reported ==")
+SENT = {}
+local i = FindLog("The Lost Map")
+table.remove(LOG, i)
+PQ.Broadcast(nil)
+Drain()
+assert(Has("D\t"), "no D command although Elwynn is expanded")
+Deliver(SENT)
+assert(not PQ.FindQuest(member, nil, "The Lost Map"), "receiver kept the turned-in quest")
+
+print("== hello: hash match -> no request; mismatch -> targeted request ==")
+SENT = {}
+PQ.SendHello()
+Drain()
+local hello
+for _, m in ipairs(SENT) do if string.sub(m.msg, 1, 2) == "H\t" then hello = m end end
+assert(hello, "no hello sent")
+SENT = {}
+Deliver({ hello })
+Drain()
+assert(not Has("R"), "requested although the hash matched")
+member.quests["q2"] = { title = "Stale", level = 1, complete = 0, obj = {}, objCount = 0 }
+member.requested = nil
+SENT = {}
+Deliver({ hello })
+Drain()
+assert(Has("R\tThrall"), "no targeted request on hash mismatch")
+
+print("== v1.0 hello is understood ==")
+PQ.OnAddonMessage("PQT", "H\t1.1.0.0", "PARTY", "Thrall")
+assert(member.version == "1.0.0" and member.proto == 1, "legacy hello parsed wrong: " .. tostring(member.version))
 
 print("\nAll tests passed.")

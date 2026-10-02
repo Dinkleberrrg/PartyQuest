@@ -2,7 +2,7 @@
 ## Title: |cff33ffccParty|cffffffffQuest
 ## Notes: Shows your party members' quest progress in the quest log and the pfQuest tracker.
 ## Author: Henry
-## Version: 1.0.0
+## Version: 1.1.0
 ## OptionalDeps: pfQuest, pfQuest-octo, pfUI, EQL3, ShaguQuest
 ## SavedVariablesPerCharacter: PartyQuest_config
 

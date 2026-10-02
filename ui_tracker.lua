@@ -9,7 +9,11 @@
      accumulate) and around tracker.DoLayout (width correction).
 
      PartyQuest loads before pfQuest (folder alphabet), so the hook is
-     installed late and retried until pfQuest is there.
+     installed when pfQuest has loaded, with a retry loop as fallback.
+     pfQuest stores ButtonEvent as each button's OnEvent script when it
+     creates the button; buttons created before our hook would keep
+     calling the original (their height snaps back while our lines stay
+     visible). So the script of every button is checked and re-pointed.
 ]]--
 
 local PQ = PartyQuest
@@ -44,6 +48,8 @@ local function BuildTrackerLines(title, questid)
       local text
       if q.complete == 1 then
         text = PQ.C.green .. "done" .. PQ.C.off
+      elseif q.complete == -1 then
+        text = PQ.C.red .. "failed" .. PQ.C.off
       else
         local cur, req = PQ.QuestProgress(q)
         if req > 0 then
@@ -119,6 +125,7 @@ local function InstallHooks()
     originalEvent(btn)
     DecorateButton(btn)
   end
+  tracker.pqButtonEvent = tracker.ButtonEvent
 
   local originalLayout = tracker.DoLayout
   tracker.DoLayout = function()
@@ -145,6 +152,16 @@ local function InstallHooks()
   return true
 end
 
+-- Points every button's OnEvent at our wrapper (see header).
+local function FixButtonScripts()
+  local tracker = pfQuest.tracker
+  for _, btn in pairs(tracker.buttons) do
+    if btn.GetScript and btn:GetScript("OnEvent") ~= tracker.pqButtonEvent then
+      btn:SetScript("OnEvent", tracker.pqButtonEvent)
+    end
+  end
+end
+
 -- Redraws every tracker button when party data has changed.
 local function RefreshTracker()
   if not pfQuest or not pfQuest.tracker or not pfQuest.tracker.pqHooked then return end
@@ -156,6 +173,13 @@ local function RefreshTracker()
   end
   tracker.DoLayout()
 end
+
+installer:RegisterEvent("ADDON_LOADED")
+installer:SetScript("OnEvent", function()
+  if arg1 == "pfQuest" and not installer.ok then
+    installer.ok = InstallHooks()
+  end
+end)
 
 installer:SetScript("OnUpdate", function()
   if GetTime() < installer.next then return end
@@ -170,6 +194,8 @@ installer:SetScript("OnUpdate", function()
     end
     return
   end
+
+  FixButtonScripts()
 
   if PQ.dataRev ~= installer.rev then
     installer.rev = PQ.dataRev

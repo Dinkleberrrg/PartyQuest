@@ -101,6 +101,12 @@ local function AppendQuestLines(out, n, q, qlogid)
     return n
   end
 
+  if q.complete == -1 then
+    n = n + 1
+    out[n] = "    " .. PQ.C.red .. "Failed" .. PQ.C.off
+    return n
+  end
+
   if (q.objCount or 0) == 0 then
     n = n + 1
     out[n] = "    " .. PQ.C.grey .. "no objectives" .. PQ.C.off
@@ -139,7 +145,7 @@ local function BuildPanelLines(qlogid, title, key)
   if PQ.db.self == "1" then
     local mine = PQ.mine[key]
     if not mine and title then
-      for k, q in pairs(PQ.mine) do
+      for _, q in pairs(PQ.mine) do
         if q.title == title then mine = q break end
       end
     end
@@ -151,7 +157,13 @@ local function BuildPanelLines(qlogid, title, key)
   local names, count = SortedMembers()
   if count == 0 then
     n = n + 1
-    out[n] = PQ.C.grey .. "Not in a group." .. PQ.C.off
+    if PQ.InGroup() == "RAID" and PQ.db.raid == "off" then
+      out[n] = PQ.C.grey .. "Raid sync is off (/pq raid)." .. PQ.C.off
+    elseif PQ.InGroup() then
+      out[n] = PQ.C.grey .. "Nobody else in your group." .. PQ.C.off
+    else
+      out[n] = PQ.C.grey .. "Not in a group." .. PQ.C.off
+    end
     return out, n
   end
 

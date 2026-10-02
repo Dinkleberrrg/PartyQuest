@@ -8,8 +8,8 @@ PartyQuest = CreateFrame("Frame", "PartyQuestCore", UIParent)
 local PQ = PartyQuest
 
 PQ.addonName  = "PartyQuest"
-PQ.versionStr = "1.0.0"
-PQ.protocol   = 1
+PQ.versionStr = "1.1.0"
+PQ.protocol   = 2   -- 1 = v1.0 (H carried "1.<version>"), 2 = H with state hash
 PQ.prefix     = "PQT"
 
 -- Default configuration (SavedVariablesPerCharacter)
@@ -19,6 +19,7 @@ PQ.defaults = {
   rows     = "1",   -- counters in the quest log list
   tracker  = "1",   -- lines in the pfQuest tracker
   self     = "1",   -- include your own progress in the panel
+  raid     = "group", -- in a raid: "group" = own subgroup only, "all", "off"
   debug    = "0",
 }
 
@@ -26,6 +27,7 @@ PQ.defaults = {
 PQ.party   = {}   -- [playername] = { time, version, quests = { [key] = questdata }, byTitle = {} }
 PQ.mine    = {}   -- [key] = questdata (own snapshot, basis for delta sync)
 PQ.roster  = {}   -- [playername] = unitid ("party1".."party4" / "raidN")
+                  -- in a raid only your own subgroup, unless db.raid == "all"
 PQ.dataRev = 0    -- bumped on every data change; the UIs poll it
 
 -- Colors
@@ -85,12 +87,20 @@ function PQ.Truncate(str, n)
 end
 
 -- Strips every character the protocol uses as a separator.
+-- (see NormTitle below for the title variant)
 function PQ.Clean(str)
   if not str then return "" end
   str = gsub(str, "[\t~#|]", " ")
   str = gsub(str, "%s+", " ")
   str = gsub(str, "^%s*(.-)%s*$", "%1")
   return str
+end
+
+-- Title as it travels over the wire: cleaned and cut to 48 bytes. Both the
+-- sender and every lookup use this form, so long titles or titles with
+-- separator characters still match.
+function PQ.NormTitle(title)
+  return PQ.Truncate(PQ.Clean(title or ""), 48)
 end
 
 -- Stable hash over a string (djb2, clamped to 2^24).
@@ -130,33 +140,82 @@ function PQ.InGroup()
   return nil
 end
 
--- Rebuilds PQ.roster and drops data from members who left.
-function PQ.UpdateRoster()
-  for k in pairs(PQ.roster) do PQ.roster[k] = nil end
-
+-- Channel used for syncing, or nil when syncing is off for this group type.
+function PQ.SyncChannel()
   local channel = PQ.InGroup()
+  if channel == "RAID" and PQ.db and PQ.db.raid == "off" then return nil end
+  return channel
+end
+
+local function IsKnownName(name)
+  return name and name ~= "" and name ~= UNKNOWNOBJECT and name ~= "Unknown"
+end
+
+-- Rebuilds PQ.roster and drops data from members who left.
+-- Returns: joined = { name, ... }, nJoined, wasAlone
+-- (wasAlone = we had nobody before, i.e. we just joined a group)
+function PQ.UpdateRoster()
+  local old, wasAlone = {}, true
+  for k, v in pairs(PQ.roster) do
+    old[k] = v
+    wasAlone = false
+    PQ.roster[k] = nil
+  end
+
+  -- During loading screens names can briefly be unknown. Then we keep the
+  -- stored data instead of throwing it away and re-syncing everything.
+  local incomplete = nil
+  local channel = PQ.SyncChannel()
   if channel == "RAID" then
     local n = GetNumRaidMembers()
+    local me = UnitName("player")
+    local mygroup = nil
+    if PQ.db and PQ.db.raid ~= "all" then
+      for i = 1, n do
+        local name, _, subgroup = GetRaidRosterInfo(i)
+        if name == me then mygroup = subgroup break end
+      end
+    end
     for i = 1, n do
       local unit = "raid" .. i
-      local name = UnitName(unit)
-      if name and not UnitIsUnit(unit, "player") then PQ.roster[name] = unit end
+      local name, _, subgroup = GetRaidRosterInfo(i)
+      name = name or UnitName(unit)
+      if not IsKnownName(name) then
+        incomplete = true
+      elseif name ~= me and (not mygroup or subgroup == mygroup) then
+        PQ.roster[name] = unit
+      end
     end
   elseif channel == "PARTY" then
     local n = GetNumPartyMembers()
     for i = 1, n do
       local unit = "party" .. i
       local name = UnitName(unit)
-      if name then PQ.roster[name] = unit end
+      if not IsKnownName(name) then
+        incomplete = true
+      else
+        PQ.roster[name] = unit
+      end
     end
   end
 
   -- Drop data from people who are no longer with us
-  for name in pairs(PQ.party) do
-    if not PQ.roster[name] then PQ.party[name] = nil end
+  if not incomplete then
+    for name in pairs(PQ.party) do
+      if not PQ.roster[name] then PQ.party[name] = nil end
+    end
+  end
+
+  local joined, nJoined = {}, 0
+  for name in pairs(PQ.roster) do
+    if not old[name] then
+      nJoined = nJoined + 1
+      joined[nJoined] = name
+    end
   end
 
   PQ.Touch()
+  return joined, nJoined, wasAlone
 end
 
 function PQ.ClassColor(name)
@@ -189,9 +248,22 @@ end
 
 function PQ.GetMember(name)
   if not PQ.party[name] then
-    PQ.party[name] = { time = GetTime(), version = nil, quests = {}, byTitle = {} }
+    PQ.party[name] = { time = GetTime(), version = nil, proto = nil, quests = {}, byTitle = {} }
   end
   return PQ.party[name]
+end
+
+-- Keeps member.byTitle in step with member.quests (keyed by NormTitle).
+function PQ.IndexTitle(member, q)
+  if q and q.title and q.title ~= "" then
+    member.byTitle[PQ.NormTitle(q.title)] = q
+  end
+end
+
+function PQ.UnindexTitle(member, q)
+  if not q or not q.title then return end
+  local t = PQ.NormTitle(q.title)
+  if member.byTitle[t] == q then member.byTitle[t] = nil end
 end
 
 -- Looks up a member's quest: by key (quest id) first, by title second.
@@ -200,7 +272,10 @@ end
 function PQ.FindQuest(member, key, title)
   if not member then return nil end
   if key and member.quests[key] then return member.quests[key] end
-  if title and member.byTitle[title] then return member.byTitle[title] end
+  if title then
+    local q = member.byTitle[PQ.NormTitle(title)]
+    if q then return q end
+  end
   return nil
 end
 
@@ -221,7 +296,7 @@ PQ:SetScript("OnEvent", function()
     PQ.Debug("config loaded")
   elseif event == "PLAYER_ENTERING_WORLD" then
     PQ.db = PartyQuest_config or PQ.defaults
-    PQ.UpdateRoster()
+    -- the roster itself is handled in comm.lua (it needs the join info)
     if not PQ.greeted then
       PQ.greeted = true
       PQ.Print("v" .. PQ.versionStr .. " loaded. Type " .. PQ.C.head .. "/pq" .. PQ.C.off .. " for options.")
