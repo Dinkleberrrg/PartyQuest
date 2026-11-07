@@ -40,16 +40,17 @@ local function Rate()
 end
 
 -- XP for one quest id at the given character level.
--- Returns nil if the quest is unknown.
+-- Returns xp, estimated (true for OctoWoW quests estimated from money),
+-- or nil if the quest is unknown.
 function PQ.QuestXP(qid, charLevel)
   local d = qid and DB[qid]
   if not d then return nil end
-  local qlevel, base = d[1], d[2]
+  local qlevel, base, est = d[1], d[2], (d[3] == 1)
   charLevel = tonumber(charLevel) or 1
-  if charLevel >= MAX_LEVEL then return 0 end
+  if charLevel >= MAX_LEVEL then return 0, est end
   local m = 2 * (qlevel - charLevel) + 20
   if m < 1 then m = 1 elseif m > 10 then m = 10 end
-  return floor(RoundXP(base * m / 10) * Rate())
+  return floor(RoundXP(base * m / 10) * Rate()), est
 end
 
 --------------------------------------------------------------------------
@@ -121,12 +122,13 @@ local function Candidates(key, title, level)
   return out
 end
 
--- Text like "1050 XP", "800-850 XP" or nil when unknown.
+-- Text like "1050 XP", "800-850 XP", "~900 XP" (estimate) or nil when unknown.
 function PQ.QuestXPText(key, title, level, charLevel)
   local ids = Candidates(key, title, level)
-  local lo, hi
+  local lo, hi, approx
   for i = 1, table.getn(ids) do
-    local xp = PQ.QuestXP(ids[i], charLevel)
+    local xp, est = PQ.QuestXP(ids[i], charLevel)
+    if est then approx = "~" end
     if xp then
       if not lo or xp < lo then lo = xp end
       if not hi or xp > hi then hi = xp end
@@ -134,8 +136,9 @@ function PQ.QuestXPText(key, title, level, charLevel)
   end
   if not lo then return nil end
   if hi == 0 then return "no XP" end
-  if lo == hi then return lo .. " XP" end
-  return lo .. "-" .. hi .. " XP"
+  approx = approx or ""
+  if lo == hi then return approx .. lo .. " XP" end
+  return approx .. lo .. "-" .. hi .. " XP"
 end
 
 --------------------------------------------------------------------------

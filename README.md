@@ -25,9 +25,14 @@ the pfQuest tracker. Built for **Octo WoW (client 1.12)**.
   ~3500 vanilla quests (`questxp_data.lua`, taken from Questie's Classic
   data) and are scaled by level like the server does: full XP up to 5
   levels above the quest, then 80/60/40/20 %, then 10 %. At level 60 it
-  shows "no XP" (quests pay gold instead). Custom OctoWoW quests are not in
-  the table and show nothing. Values are estimates and can be off by a few
-  points of rounding. If the server runs a higher XP rate, set it with
+  shows "no XP" (quests pay gold instead). Values can be off by a few
+  points of rounding.
+
+  About 1,575 OctoWoW/Turtle quests that Questie does not know are added
+  from [OctoQuestDatabase](https://github.com/FrancisEgan/OctoQuestDatabase).
+  It has no XP column, so their XP is estimated from the quest's max-level
+  money reward and shown with a `~` (e.g. `~420 XP`). On known quests that
+  estimate lands within 10 % about 9 times in 10. If the server runs a higher XP rate, set it with
   `/pq xprate`.
 
 ## Requirement
@@ -103,7 +108,8 @@ _test/           offline test harness (not loaded by the game)
 
 ### 1.2.0
 * Shows quest XP in the quest log, the NPC quest window and per member in
-  the side panel. `/pq xp` and `/pq xprate`.
+  the side panel. `/pq xp` and `/pq xprate`. OctoWoW quests are estimated
+  (marked `~`).
 
 ### 1.1.1
 * Raid sync is off by default (party only); `/pq raid` turns it on.
