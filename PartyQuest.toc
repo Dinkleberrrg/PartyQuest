@@ -1,8 +1,8 @@
 ## Interface: 11200
 ## Title: |cff33ffccParty|cffffffffQuest
-## Notes: Shows your party members' quest progress in the quest log and the pfQuest tracker.
+## Notes: Shows your party members' quest progress and the XP each quest gives.
 ## Author: Dinkleberrrg
-## Version: 1.1.1
+## Version: 1.2.0
 ## OptionalDeps: pfQuest, pfQuest-octo, pfUI, EQL3, ShaguQuest
 ## SavedVariablesPerCharacter: PartyQuest_config
 
@@ -11,4 +11,6 @@ scan.lua
 comm.lua
 ui_questlog.lua
 ui_tracker.lua
+questxp_data.lua
+xp.lua
 slash.lua

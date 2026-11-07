@@ -15,6 +15,25 @@ the pfQuest tracker. Built for **Octo WoW (client 1.12)**.
   to turn it in.
 * **pfQuest tracker** – Under each tracked quest, one line per member with
   their overall progress (`Thrall 6/8`, `Jaina done`).
+* **Quest XP** – The XP a quest gives at your level, behind the quest title
+  in the quest log and in the quest window at the NPC (accept, progress,
+  turn in). In the side panel every member gets the XP for *their* level,
+  so you see who still profits from a quest. Works on its own, also when
+  you are not in a group.
+
+  The 1.12 client has no XP API, so the values come from a table of
+  ~3500 vanilla quests (`questxp_data.lua`, taken from Questie's Classic
+  data) and are scaled by level like the server does: full XP up to 5
+  levels above the quest, then 80/60/40/20 %, then 10 %. At level 60 it
+  shows "no XP" (quests pay gold instead). Values can be off by a few
+  points of rounding.
+
+  About 1,575 OctoWoW/Turtle quests that Questie does not know are added
+  from [OctoQuestDatabase](https://github.com/FrancisEgan/OctoQuestDatabase).
+  It has no XP column, so their XP is estimated from the quest's max-level
+  money reward and shown with a `~` (e.g. `~420 XP`). On known quests that
+  estimate lands within 10 % about 9 times in 10. If the server runs a higher XP rate, set it with
+  `/pq xprate`.
 
 ## Requirement
 
@@ -39,6 +58,8 @@ switches between off, own subgroup and whole raid.
 | `/pq tracker` | pfQuest tracker lines on/off |
 | `/pq self` | Your own progress in the panel on/off |
 | `/pq raid` | In raids: off / own subgroup / whole raid |
+| `/pq xp` | Quest XP display on/off |
+| `/pq xprate N` | Server XP rate, e.g. `/pq xprate 2` for double XP (default 1) |
 | `/pq on` / `/pq off` | Sync on/off entirely |
 | `/pq debug` | Debug output |
 
@@ -77,11 +98,18 @@ scan.lua         read own quest log, build diff
 comm.lua         sync protocol (send/receive/throttle)
 ui_questlog.lua  panel on the quest log + counters in the list
 ui_tracker.lua   pfQuest tracker extension
+questxp_data.lua quest XP table (generated)
+xp.lua           quest XP calculation and display
 slash.lua        /pq
 _test/           offline test harness (not loaded by the game)
 ```
 
 ## Changelog
+
+### 1.2.0
+* Shows quest XP in the quest log, the NPC quest window and per member in
+  the side panel. `/pq xp` and `/pq xprate`. OctoWoW quests are estimated
+  (marked `~`).
 
 ### 1.1.1
 * Raid sync is off by default (party only); `/pq raid` turns it on.
