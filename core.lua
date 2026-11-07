@@ -8,7 +8,7 @@ PartyQuest = CreateFrame("Frame", "PartyQuestCore", UIParent)
 local PQ = PartyQuest
 
 PQ.addonName  = "PartyQuest"
-PQ.versionStr = "1.1.1"
+PQ.versionStr = "1.2.0"
 PQ.protocol   = 2   -- 1 = v1.0 (H carried "1.<version>"), 2 = H with state hash
 PQ.prefix     = "PQT"
 
@@ -20,6 +20,8 @@ PQ.defaults = {
   tracker  = "1",   -- lines in the pfQuest tracker
   self     = "1",   -- include your own progress in the panel
   raid     = "off", -- in a raid: "off" (default), "group" = own subgroup, "all"
+  xp       = "1",   -- show quest XP (quest log, NPC quest window, panel)
+  xprate   = "1",   -- XP multiplier of the server
   debug    = "0",
 }
 

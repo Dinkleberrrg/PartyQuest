@@ -43,6 +43,8 @@ local function Help()
   DEFAULT_CHAT_FRAME:AddMessage("  /pq tracker   - pfQuest tracker lines on/off")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq self      - your own progress in the panel on/off")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq raid      - in raids: off / own subgroup / whole raid")
+  DEFAULT_CHAT_FRAME:AddMessage("  /pq xp        - quest XP display on/off")
+  DEFAULT_CHAT_FRAME:AddMessage("  /pq xprate N  - server XP rate (e.g. 2 for double XP), now " .. (PQ.db.xprate or "1"))
   DEFAULT_CHAT_FRAME:AddMessage("  /pq on | off  - sync on/off entirely")
   DEFAULT_CHAT_FRAME:AddMessage("  /pq debug     - debug output on/off")
 end
@@ -80,6 +82,18 @@ SlashCmdList["PARTYQUEST"] = function(msg)
     local text = { group = "own subgroup only", all = "whole raid", off = "off" }
     PQ.Print("Raid sync: " .. PQ.C.head .. text[PQ.db.raid] .. PQ.C.off)
     PQ.OnRosterChanged()
+  elseif msg == "xp" then
+    Toggle("xp", "Quest XP display")
+  elseif strfind(msg, "^xprate") then
+    local _, _, value = strfind(msg, "^xprate%s+([%d%.]+)$")
+    value = tonumber(value)
+    if value and value > 0 then
+      PQ.db.xprate = tostring(value)
+      PQ.Print("XP rate: " .. PQ.C.head .. value .. "x" .. PQ.C.off)
+      PQ.Touch()
+    else
+      PQ.Print("Usage: /pq xprate 1   (current: " .. (PQ.db.xprate or "1") .. ")")
+    end
   elseif msg == "debug" then
     Toggle("debug", "Debug")
   elseif msg == "on" then

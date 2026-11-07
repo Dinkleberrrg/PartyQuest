@@ -137,8 +137,18 @@ local function AppendQuestLines(out, n, q, qlogid)
   return n
 end
 
+-- " 1050 XP" in gold for a unit's level, or "" (feature off / unknown quest)
+local function XPTag(key, title, level, unit)
+  if not PQ.db or PQ.db.xp ~= "1" or not PQ.QuestXPText then return "" end
+  local charLevel = unit and UnitLevel(unit)
+  if not charLevel or charLevel <= 0 then return "" end
+  local text = PQ.QuestXPText(key, title, level, charLevel)
+  if not text then return "" end
+  return "  " .. PQ.C.gold .. text .. PQ.C.off
+end
+
 -- Builds the complete line list for the currently selected quest.
-local function BuildPanelLines(qlogid, title, key)
+local function BuildPanelLines(qlogid, title, key, level)
   local out, n = {}, 0
 
   -- own state
@@ -151,6 +161,7 @@ local function BuildPanelLines(qlogid, title, key)
     end
     n = n + 1
     out[n] = PQ.ClassColor(UnitName("player")) .. "You" .. PQ.C.off
+      .. XPTag(key, title, level, "player")
     n = AppendQuestLines(out, n, mine, qlogid)
   end
 
@@ -172,6 +183,7 @@ local function BuildPanelLines(qlogid, title, key)
     local member = PQ.party[name]
     n = n + 1
     out[n] = PQ.ClassColor(name) .. name .. PQ.C.off
+      .. XPTag(key, title, level, PQ.roster[name])
 
     if not member or not member.version then
       n = n + 1
@@ -217,7 +229,7 @@ function PQ.RefreshPanel()
   panel:SetPoint("TOPLEFT", qlf, "TOPRIGHT", -33, -12)
 
   local key = PQ.QuestKey(sel, title)
-  local lines, n = BuildPanelLines(sel, title, key)
+  local lines, n = BuildPanelLines(sel, title, key, level)
 
   panel.title:SetText(PQ.C.head .. "Party" .. PQ.C.off .. " " .. PQ.C.grey
     .. PQ.Truncate(title, 22) .. PQ.C.off)
